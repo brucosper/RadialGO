@@ -34,9 +34,9 @@ get_edges <- function(ids){
     if(length(children) > 0){
       in_common <- unique(intersect(children, ids))
       for(i in in_common){
-          newrow <- data.frame(from=i, to=id)
-          edge_list <- InsertRow(edge_list, newrow)
-        }
+        newrow <- data.frame(from=i, to=id)
+        edge_list <- InsertRow(edge_list, newrow)
+      }
     }
   }
   return(edge_list)
@@ -64,7 +64,7 @@ get_nodes <- function(ids){
 
 buildGraphvizGraph <- function(nodes, edges){
   out <- "digraph Enrichment {
-          graph [layout=twopi, overlap = true, fontsize = 1, ranksep=5]
+          graph [layout=twopi, overlap = true, splines=curved, fontsize = 1, nodesep=10, ranksep=4]
           node [shape=circle, fillcolor = orange, style = filled, width=2]
           "
   for(i in nodes){
@@ -87,13 +87,65 @@ buildGraphvizGraph <- function(nodes, edges){
   return(out)
 }
 
-nodes<-get_nodes(as.list(go_ids[1:5]))
-edges<-get_edges(nodes[[1]]) # not sure why i have to index this, but it won't work without it
-gr<-buildGraphvizGraph(nodes[[1]], as.matrix(edges))
-DiagrammeR::grViz(gr)
+getSubgraphNodes <- function(enrichment_results){
+  nodes<-data.frame(id=character(), stringsAsFactors = FALSE)
+  for(i in enrichment_results[["id"]]){
+    nodes <- rbind(nodes, data.frame(id=i))
+    ancestors <- as.list(GOBPANCESTOR[[i]])
+    ancestors <- ancestors[!is.na(ancestors)]
+    ancestors <- ancestors[which(ancestors != "all")]
+    if(length(ancestors) > 0){
+      for(ancestor in ancestors){
+        newRow <- data.frame(id=ancestor, stringsAsFactors = FALSE)
+        nodes <- rbind(nodes, newRow)
+      }
+    }
+  }
+  return(unique(nodes))
+}
+
+buildNodeDF <- function(enrichment_results){
+  nodes <- data.frame(nodes=character(), type=character(),
+                      label=character(), style=character(),
+                      color=character(), shape=character(),
+                      data=character())
+  nodeList <- getSubgraphNodes(enrichment_results)
+  names(nodeList) <- c("nodes")
+  nodes <- rbind(nodes, nodeList)
+  # TODO the above code is losing the empty columns, need to add default values for them
+  return(nodes)
+  # add node types, colour, etc here
+}
+
+
+
+buildEdgeDF <- function(nodeDF){
+  edges <- data.frame(from=character(), to=character(), rel=character())
+  for(i in nodeDF[["nodes"]]){
+    children <- as.list(GOBPCHILDREN[[i]])
+    children <- children[!is.na(children)]
+    if(length(children) > 0){
+      in_common <- unique(intersect(children, nodeDF[["nodes"]]))
+      for(j in in_common){
+        edges <- rbind(edges, data.frame(from=j, to=i, rel="leading_to"))
+      }
+    }
+  }
+  return(edges)
+}
+
+nodes <- buildNodeDF(go_ids)
+edges <- buildEdgeDF(nodes)
+print(nodes)
+print(edges)
+gr <- create_graph(nodes_df = nodes, edges_df = edges, directed=TRUE)
+render_graph(gr)
+
+#DiagrammeR::grViz(gr)
 
 # TODO
 # change colour according to p-value or score
 # make nodes equidistant
 # add relationships edges (part_of, etc.)
 # cluster by cellular component
+# change buildgraph to use diagrammer
