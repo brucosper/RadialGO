@@ -1,10 +1,10 @@
-# TODO
-# change code to take in list of all nodes with scores, rather than just top x
-# color nodes according to scores
-# make nodes equidistant
-# add relationships edges (part_of, etc.)
-# cluster by cellular component
-# add documentation
+#' TODO
+#' Change color scale to better show the differences between small p-values
+#' Find some way to remove node overlap while keeping the radial shape intact
+#' Fix edge colors not showing (seems like a bug in DiagrammeR or Graphviz)
+#' Add documentation
+#' Fix naming conventions
+#' Cluster nodes by cellular component localization
 
 require(GO.db, quietly = TRUE)
 require(DataCombine, quietly = TRUE)
@@ -15,13 +15,13 @@ go_ids<-readRDS("example_ids.rds")
 
 getSubgraphNodes <- function(enrichment_results){
   nodes <- data.frame(id=character(), stringsAsFactors = FALSE)
-  for(i in names(enrichment_results)){
+  for (i in names(enrichment_results)){
     nodes <- rbind(nodes, data.frame(id=i, stringsAsFactors = FALSE))
     ancestors <- as.list(GOBPANCESTOR[[i]])
     ancestors <- ancestors[!is.na(ancestors)]
     ancestors <- ancestors[which(ancestors != "all")]
-    if(length(ancestors) > 0){
-      for(ancestor in ancestors){
+    if (length(ancestors) > 0){
+      for (ancestor in ancestors){
         newRow <- data.frame(id=ancestor, stringsAsFactors = FALSE)
         nodes <- rbind(nodes, newRow)
       }
@@ -32,7 +32,8 @@ getSubgraphNodes <- function(enrichment_results){
 
 buildLabel <- function(goTerm, scores){
   label <- paste(c(as.character(gsub(" ", "\n", Term(GOTERM[[goTerm]]))),
-                                "\n\n", as.character(round(scores[[goTerm]], 4)), "\n\n", goTerm),
+                                "\n\n", as.character(round(scores[[goTerm]], 4)),
+                                "\n\n", goTerm),
                  collapse='')
   return(label)
 }
@@ -43,69 +44,75 @@ buildNodeDF <- function(enrichment_results, top){
                   color=character(), shape=character(),
                   data=numeric(), stringsAsFactors = FALSE)
   nodeList <- getSubgraphNodes(enrichment_results[1:top])
-  for(i in 1:(dim(nodeList)[1])){
+  for (i in seq(along=dim(nodeList)[1])){
     nodeLabel <- buildLabel(nodeList[i, ], go_ids)
-    if(as.character(nodeList[i, ]) %in% names(enrichment_results)){
-      colorIndex <- (enrichment_results[nodeList[i, ]] * 1000)
-      nodeColor <- heat.colors(1000)[colorIndex]
-      newNode <- data.frame(id=as.numeric(substr(nodeList[i, ], 4, nchar(nodeList[i, ]))),
+    if (as.character(nodeList[i, ]) %in% names(enrichment_results)){
+      colorIndex <- (enrichment_results[nodeList[i, ]] *
+                     length(enrichment_results))
+      nodeColor <- heat.colors(length(enrichment_results))[colorIndex]
+      newNode <- data.frame(id=as.numeric(substr(nodeList[i, ], 4,
+                                                 nchar(nodeList[i, ]))),
                             type="normal",
                             label= nodeLabel, style="filled",
                             fillcolor=nodeColor,
                             shape="circle", data=0,
                             fontsize = 80, fontcolor = "black",
                             stringsAsFactors = FALSE)
-      #print(newNode)
-    }
-    else{
-      newNode <- data.frame(id=as.numeric(substr(as.character(nodeList[i, ]), 4, nchar(nodeList[i, ]))),
+    } else {
+      # as.character can be removed?
+      newNode <- data.frame(id=as.numeric(substr(as.character(nodeList[i, ]),
+                                                 4, nchar(nodeList[i, ]))),
                             type="normal",
                             label= nodeLabel, style="filled", fillcolor="white",
                             shape="circle", data=0,
                             fontsize = 80, fontcolor = "black",
                             stringsAsFactors = FALSE)
-      #print(newNode)
     }
     n <- rbind(n, newNode)
   }
-  #nodes <- rbind(nodes, nodeList)
-  # TODO the above code is losing the empty columns, need to add default values for them
   return(n)
-  # add node types, colour, etc here
 }
 
 rebuildGOID <- function(goID){
   return(paste(c("GO:", rep("0",(7-nchar(goID))), goID), collapse=''))
 }
 
+getEdgeColor <- function(edgeRelationships){
+  edgeColor <- ""
+  switch(edgeRelationships,
+         "is_a" = edgeColor <- "blue",
+         "part_of" = edgeColor <- "yellow",
+         "has_part" = edgeColor <- "black",
+         "regulates" = edgeColor <- "purple",
+         "negatively_regulates" = color <- "green",
+         "positively_regulates" = color <- "red")
+  return(edgeColor)
+}
+
 buildEdgeDF <- function(nodeDF){
-  edges <- data.frame(from=character(), to=character(), rel=character(), style=character(), stringsAsFactors = FALSE)
-  terms <- invert(Term(GOTERM))
+  edges <- data.frame(from=character(), to=character(), rel=character(),
+                      style=character(), stringsAsFactors = FALSE)
+  terms <- searchable::invert(Term(GOTERM))
   listOfNodes <- character()
-  for(i in nodeDF[["id"]]){
+  for (i in nodeDF[["id"]]){
     # build list of node GO IDs in the nodeDF here, to check with children
     go_id <- rebuildGOID(i)
     listOfNodes <- c(listOfNodes, go_id)
   }
-  for(i in nodeDF[["id"]]){
+  for (i in nodeDF[["id"]]){
     go_id <- rebuildGOID(i)
     children <- as.list(GOBPCHILDREN[[go_id]])
     children <- children[!is.na(children)]
-    if(length(children) > 0){
+    if (length(children) > 0){
       in_common <- unique(intersect(children, listOfNodes))
-      for(j in in_common){
+      for (j in in_common){
         edgeStyle <- ""
         edgeColor <- ""
-        lookUp <- invert(GOBPCHILDREN[[go_id]])
-        switch(lookUp[[j]],
-               "is_a" = edgeColor <- "blue",
-               "part_of" = edgeColor <- "yellow",
-               "has_part" = edgeColor <- "black",
-               "regulates" = edgeColor <- "purple",
-               "negatively_regulates" = color <- "green",
-               "positively_regulates" = color <- "red")
+        lookUp <- searchable::invert(GOBPCHILDREN[[go_id]])
+        edgeColor <- getEdgeColor(lookUp[[j]])
         edges <- rbind(edges, data.frame(from=as.numeric(substr(j, 4, nchar(j))),
-                                         to=as.numeric(substr(go_id, 4, nchar(go_id))),
+                                         to=as.numeric(substr(go_id, 4,
+                                                              nchar(go_id))),
                                          rel=lookUp[[j]],
                                          arrowsize=5,
                                          color=edgeColor))
@@ -115,25 +122,40 @@ buildEdgeDF <- function(nodeDF){
   return(edges)
 }
 
-# need to pass in full go_ids with scores, and an integer (top x to use for subgraph generation)
-nodes <- buildNodeDF(go_ids, 5)
-edges <- buildEdgeDF(nodes)
-gr <- create_graph(nodes_df = nodes,
-                   edges_df = edges,
-                   directed=TRUE)
-gr <- add_global_graph_attrs(gr, attr="layout", value="twopi", attr_type = "graph")
-gr <- add_global_graph_attrs(gr, attr="root", value="8150", attr_type = "graph")
-gr <- add_global_graph_attrs(gr, attr="ranksep", value="20", attr_type = "graph")
-gr <- add_global_graph_attrs(gr, attr="nodesep", value="20", attr_type = "graph")
-gr <- add_global_graph_attrs(gr, attr="rank", value="same", attr_type = "graph")
-gr <- add_global_graph_attrs(gr, attr="splines", value="curved", attr_type = "graph")
-gr <- add_global_graph_attrs(gr, attr="forcelabels", value="true", attr_type = "graph")
-gr <- add_global_graph_attrs(gr, attr="orientation", value="[lL]*", attr_type = "graph")
-gr <- add_global_graph_attrs(gr, attr="overlap", value="prism0", attr_type = "graph")
-gr <- add_global_graph_attrs(gr, attr="fixedsize", value="true", attr_type = "node")
-gr <- add_global_graph_attrs(gr, attr="width", value="12", attr_type = "node")
-gr <- add_global_graph_attrs(gr, attr="height", value="12", attr_type = "node")
-gr <- add_global_graph_attrs(gr, attr="penwidth", value="8", attr_type = "edge")
+generateGraph <- function(scores){
+  nodes <- buildNodeDF(go_ids, 5)
+  edges <- buildEdgeDF(nodes)
+  gr <- create_graph(nodes_df = nodes,
+                     edges_df = edges,
+                     directed=TRUE)
 
+  gr <- add_global_graph_attrs(gr, attr="layout", value="twopi",
+                               attr_type = "graph")
+  gr <- add_global_graph_attrs(gr, attr="root", value="8150",
+                               attr_type = "graph")
+  gr <- add_global_graph_attrs(gr, attr="ranksep", value="20",
+                               attr_type = "graph")
+  gr <- add_global_graph_attrs(gr, attr="nodesep", value="20",
+                               attr_type = "graph")
+  gr <- add_global_graph_attrs(gr, attr="rank", value="same",
+                               attr_type = "graph")
+  gr <- add_global_graph_attrs(gr, attr="splines", value="curved",
+                               attr_type = "graph")
+  gr <- add_global_graph_attrs(gr, attr="forcelabels", value="true",
+                               attr_type = "graph")
+  gr <- add_global_graph_attrs(gr, attr="orientation", value="[lL]*",
+                               attr_type = "graph")
+  gr <- add_global_graph_attrs(gr, attr="overlap", value="prism0",
+                               attr_type = "graph")
+  gr <- add_global_graph_attrs(gr, attr="fixedsize", value="true",
+                               attr_type = "node")
+  gr <- add_global_graph_attrs(gr, attr="width", value="12",
+                               attr_type = "node")
+  gr <- add_global_graph_attrs(gr, attr="height", value="12",
+                               attr_type = "node")
+  gr <- add_global_graph_attrs(gr, attr="penwidth", value="8",
+                               attr_type = "edge")
 
-render_graph(gr, width=1280, height=1024)
+  render_graph(gr, width=1280, height=1024)
+}
+# [END]
