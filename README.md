@@ -27,4 +27,11 @@ library("RadialGO")
 lsf.str("package:RadialGO")
 ```
 
-<!-- ADD CITATIONS -->
+- generateGraph
+- rebuildGOID
+
+The generateGraph function was authored by Bruno Pereira. It uses the DiagrammeR
+package for generating graphical output.
+The GO.db and the AnnotationDbi packages were used to retrieve information about
+GO terms. The invert function in the searchable package was used for 
+facilitating data retrieval from a named numerical vector .

@@ -117,7 +117,6 @@ buildNodeDF <- function(enrichment_results, top){
 #' @return The full GO ID
 #' @examples
 #' rebuildGOID(8150)
-#' @export
 #'
 rebuildGOID <- function(goID){
   return(paste(c("GO:", rep("0",(7-nchar(goID))), goID), collapse=''))
