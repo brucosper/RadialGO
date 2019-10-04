@@ -7,7 +7,7 @@ in a radial tree format.
 ## Installation
 
 You can install the latest version using
-```r 
+``` r 
 require("devtools")
 install_github("brucosper/RadialGO")
 library("RadialGO")
@@ -22,7 +22,7 @@ library("RadialGO")
 The author of the package is Bruno Pereira. The functions available within this 
 package include. 
 
-```r 
+``` r 
 library("RadialGO")
 lsf.str("package:RadialGO")
 ```
