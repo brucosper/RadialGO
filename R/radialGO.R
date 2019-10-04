@@ -3,14 +3,15 @@
 # Fix edge colors not showing (seems like a bug in DiagrammeR or Graphviz)
 # Cluster nodes by cellular component localization
 
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
 if(!require(GO.db)){
   message("Installing the GO.db package")
-  install.packages("GO.db")
+  BiocManager::install("GO.db")
 }
 if(!require(AnnotationDbi)){
   message("Installing the AnnotationDbi package")
-  install.packages("AnnotationDbi")
-}
+  BiocManager::install("AnnotationDbi")}
 if(!require(DiagrammeR)){
   message("Installing the DiagrammeR package")
   install.packages("DiagrammeR")
