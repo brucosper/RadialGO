@@ -6,6 +6,8 @@ Author: Bruno Pereira
 Maintainer: Bruno Pereira <bruno.pereira@mail.utoronto.ca>
 Description: This package allows users to visualize Gene Ontology enrichment 
     data in a radial tree format, given a set of terms and p-values.
-License: MIT license
+License: MIT
 Encoding: UTF-8
 LazyData: true
+RoxygenNote: 6.1.1
+Imports: GO.db, DiagrammeR, searchable, AnnotationDbi

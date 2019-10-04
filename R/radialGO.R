@@ -1,16 +1,24 @@
-#' TODO
-#' Change color scale to better show the differences between small p-values
-#' Fix edge colors not showing (seems like a bug in DiagrammeR or Graphviz)
-#' Add documentation
-#' Fix naming conventions
-#' Cluster nodes by cellular component localization
-#' Add edge attributes to new edges after reducing
-#'
-require(GO.db, quietly = TRUE)
-require(DataCombine, quietly = TRUE)
-require(DiagrammeR, quietly = TRUE)
-require(searchable, quietly = TRUE)
+# TODO
+# Change color scale to better show the differences between small p-values
+# Fix edge colors not showing (seems like a bug in DiagrammeR or Graphviz)
+# Cluster nodes by cellular component localization
 
+if(!require(GO.db)){
+  message("Installing the GO.db package")
+  install.packages("GO.db")
+}
+if(!require(AnnotationDbi)){
+  message("Installing the AnnotationDbi package")
+  install.packages("AnnotationDbi")
+}
+if(!require(DiagrammeR)){
+  message("Installing the DiagrammeR package")
+  install.packages("DiagrammeR")
+}
+if(!require(searchable)){
+  message("Installing the searchable package")
+  install.packages("searchable")
+}
 
 #' Generate the subgraph implied by the list of nodes passed in.
 #' @param enrichment_results A named numerical vector containing GO IDs as names
@@ -18,14 +26,18 @@ require(searchable, quietly = TRUE)
 #' @return A data frame containing one column, named "id", with the nodes needed
 #'         for building the graph
 #' @examples
+#' \dontrun{
 #' scores <- c(0.5, 0.2, 0.001)
 #' names(scores) <- c("GO:0008150", "GO:1901360", "GO:0006139")
 #' getSubgraphNodes(scores)
+#' }
+#' @importFrom GO.db GOBPANCESTOR
+#'
 getSubgraphNodes <- function(enrichment_results){
   nodes <- data.frame(id=character(), stringsAsFactors = FALSE)
   for (i in names(enrichment_results)){
     nodes <- rbind(nodes, data.frame(id=i, stringsAsFactors = FALSE))
-    ancestors <- as.list(GOBPANCESTOR[[i]])
+    ancestors <- as.list(GO.db::GOBPANCESTOR[[i]])
     ancestors <- ancestors[!is.na(ancestors)]
     ancestors <- ancestors[which(ancestors != "all")]
     if (length(ancestors) > 0){
@@ -43,12 +55,16 @@ getSubgraphNodes <- function(enrichment_results){
 #' @param scores A named numerical vector containing GO IDs as names
 #'               and the corresponding score
 #' @return A string containing the label text
-#' @examples <- c(0.4)
+#' @examples
+#' \dontrun{
 #' scores <- c(0.5, 0.2, 0.001)
 #' names(scores) <- c("GO:0008150", "GO:1901360", "GO:0006139")
 #' buildLabel(names(scores[1]), scores)
+#' }
+#' @importFrom AnnotationDbi Term
+#'
 buildLabel <- function(goTerm, scores){
-  label <- paste(c(as.character(gsub(" ", "\n", Term(GOTERM[[goTerm]]))),
+  label <- paste(c(as.character(gsub(" ", "\n", AnnotationDbi::Term(GO.db::GOTERM[[goTerm]]))),
                                 "\n\n", goTerm,
                                 "\n\n", as.character(round(scores[[goTerm]], 4))),
                  collapse='')
@@ -59,10 +75,7 @@ buildLabel <- function(goTerm, scores){
 #' @param enrichment_results A named numerical vector containing GO IDs as names
 #'                           and the corresponding score
 #' @param top The number of top nodes to use to build the graph
-#' @examples
-#' scores <- c(0.5, 0.2, 0.001)
-#' names(scores) <- c("GO:0008150", "GO:1901360", "GO:0006139")
-#' buildNodeDF(scores, 2)
+#'
 buildNodeDF <- function(enrichment_results, top){
   n <- data.frame(nodes=character(), type=character(),
                   label=character(), style=character(),
@@ -103,7 +116,8 @@ buildNodeDF <- function(enrichment_results, top){
 #' @param goID A string or number containing the GO ID number
 #' @return The full GO ID
 #' @examples
-#'  rebuildGOID(8150)
+#' rebuildGOID(8150)
+#' @export
 #'
 rebuildGOID <- function(goID){
   return(paste(c("GO:", rep("0",(7-nchar(goID))), goID), collapse=''))
@@ -113,7 +127,9 @@ rebuildGOID <- function(goID){
 #' @param edgeRelationships A string containing a relationship between GO terms
 #' @return A string containing the color the edge should take
 #' @examples
+#' \dontrun{
 #' getEdgeColor("is_a")
+#' }
 #'
 getEdgeColor <- function(edgeRelationships){
   edgeColor <- ""
@@ -136,14 +152,17 @@ getEdgeColor <- function(edgeRelationships){
 #' @param nodeDF A data frame containing at least columns id, label,
 #' @return A data frame of edges (from, to, rel)
 #' @examples
+#' \dontrun{
 #' scores <- c(0.5, 0.2, 0.001)
 #' names(scores) <- c("GO:0008150", "GO:1901360", "GO:0006139")
 #' buildEdgeDF(buildNodeDF(scores, 2))
-#'
+#' }
+#' @importFrom AnnotationDbi Term
+#' @import GO.db
 buildEdgeDF <- function(nodeDF){
   edges <- data.frame(from=character(), to=character(), rel=character(),
                       style=character(), stringsAsFactors = FALSE)
-  terms <- searchable::invert(Term(GOTERM))
+  terms <- searchable::invert(AnnotationDbi::Term(GO.db::GOTERM))
   listOfNodes <- character()
   for (i in nodeDF[["id"]]){
     # build list of node GO IDs in the nodeDF here, to check with children
@@ -152,13 +171,13 @@ buildEdgeDF <- function(nodeDF){
   }
   for (i in nodeDF[["id"]]){
     go_id <- rebuildGOID(i)
-    children <- as.list(GOBPCHILDREN[[go_id]])
+    children <- as.list(GO.db::GOBPCHILDREN[[go_id]])
     children <- children[!is.na(children)]
     if (length(children) > 0){
       in_common <- unique(intersect(children, listOfNodes))
       for (j in in_common){
         edgeColor <- ""
-        lookUp <- searchable::invert(GOBPCHILDREN[[go_id]])
+        lookUp <- searchable::invert(GO.db::GOBPCHILDREN[[go_id]])
         edgeColor <- getEdgeColor(lookUp[[j]])
         edgeLabel <- lookUp[[j]]
         edges <- rbind(edges, data.frame(from=as.numeric(substr(j, 4, nchar(j))),
@@ -180,6 +199,7 @@ buildEdgeDF <- function(nodeDF){
 #' @param cutoff The cutoff to be used (nodes above this cutoff will be removed)
 #' @return A graph with the nodes removed
 #'
+#' @importFrom DiagrammeR combine_edfs
 reduceGraph <- function(graph, cutoff){
   edgeDF <- get_edge_df(graph)
   nodeDF <- get_node_df(graph)
@@ -225,9 +245,14 @@ reduceGraph <- function(graph, cutoff){
 #' @param cutoff The cutoff to be used for hiding nodes
 #' @return A graph object to be used with render_graph()
 #' @examples
+#' \dontrun{
 #' scores <- c(0.5, 0.2, 0.001)
 #' names(scores) <- c("GO:0008150", "GO:1901360", "GO:0006139")
 #' generateGraph(scores, 2, 0.3)
+#' }
+#' @export
+#' @import DiagrammeR
+#'
 generateGraph <- function(scores, top, cutoff){
   nodes <- buildNodeDF(scores, top)
   edges <- buildEdgeDF(nodes)
@@ -239,7 +264,7 @@ generateGraph <- function(scores, top, cutoff){
                                attr_type = "graph")
   gr <- add_global_graph_attrs(gr, attr="root", value="8150",
                                attr_type = "graph")
-  gr <- add_global_graph_attrs(gr, attr="ranksep", value="15",
+  gr <- add_global_graph_attrs(gr, attr="ranksep", value="20",
                                attr_type = "graph")
   gr <- add_global_graph_attrs(gr, attr="nodesep", value="20",
                                attr_type = "graph")
@@ -255,17 +280,13 @@ generateGraph <- function(scores, top, cutoff){
                                attr_type = "graph")
   gr <- add_global_graph_attrs(gr, attr="fixedsize", value="true",
                                attr_type = "node")
-  gr <- add_global_graph_attrs(gr, attr="width", value="12",
+  gr <- add_global_graph_attrs(gr, attr="width", value="14",
                                attr_type = "node")
-  gr <- add_global_graph_attrs(gr, attr="height", value="12",
+  gr <- add_global_graph_attrs(gr, attr="height", value="14",
                                attr_type = "node")
   gr <- add_global_graph_attrs(gr, attr="penwidth", value="8",
                                attr_type = "edge")
 
   return(gr)
 }
-
-go_ids<-readRDS("example_ids.rds")
-graph <- generateGraph(go_ids, 5, 0.2)
-render_graph(graph, width=1280, height=1024)
 # [END]
