@@ -69,14 +69,12 @@ buildNodeDF <- function(enrichment_results, top){
                   color=character(), shape=character(),
                   data=numeric(), stringsAsFactors = FALSE)
   nodeList <- getSubgraphNodes(enrichment_results[1:top])
-
   for (i in seq(along=1:dim(nodeList)[1])){
     nodeLabel <- buildLabel(nodeList[i, ], enrichment_results)
-
     if (as.character(nodeList[i, ]) %in% names(enrichment_results)){
       colorIndex <- (enrichment_results[nodeList[i, ]] *
                      length(enrichment_results))
-      nodeColor <- colorRampPalette(c("red", "black", "grey"),
+      nodeColor <- colorRampPalette(c("red", "grey", "white"),
                                     space="rgb")(length(enrichment_results))[colorIndex]
       newNode <- data.frame(id=as.numeric(substr(nodeList[i, ], 4,
                                                  nchar(nodeList[i, ]))),
@@ -104,7 +102,8 @@ buildNodeDF <- function(enrichment_results, top){
 #' Rebuild a GO ID string from its number
 #' @param goID A string or number containing the GO ID number
 #' @return The full GO ID
-#' @example rebuildGOID(8150)
+#' @examples
+#'  rebuildGOID(8150)
 #'
 rebuildGOID <- function(goID){
   return(paste(c("GO:", rep("0",(7-nchar(goID))), goID), collapse=''))
@@ -123,8 +122,8 @@ getEdgeColor <- function(edgeRelationships){
          "part_of" = edgeColor <- "yellow",
          "has_part" = edgeColor <- "black",
          "regulates" = edgeColor <- "purple",
-         "negatively_regulates" = color <- "green",
-         "positively_regulates" = color <- "red")
+         "negatively_regulates" = edgeColor <- "green",
+         "positively_regulates" = edgeColor <- "red")
   return(edgeColor)
 }
 
@@ -140,6 +139,7 @@ getEdgeColor <- function(edgeRelationships){
 #' scores <- c(0.5, 0.2, 0.001)
 #' names(scores) <- c("GO:0008150", "GO:1901360", "GO:0006139")
 #' buildEdgeDF(buildNodeDF(scores, 2))
+#'
 buildEdgeDF <- function(nodeDF){
   edges <- data.frame(from=character(), to=character(), rel=character(),
                       style=character(), stringsAsFactors = FALSE)
@@ -174,11 +174,14 @@ buildEdgeDF <- function(nodeDF){
   return(edges)
 }
 
-
+#' Removes nodes from the graph which have a p-value above the specified cutoff,
+#' collapsing the edges
+#' @param graph The graph to reduce
+#' @param cutoff The cutoff to be used (nodes above this cutoff will be removed)
+#' @return A graph with the nodes removed
+#'
 reduceGraph <- function(graph, cutoff){
   edgeDF <- get_edge_df(graph)
-  print(edgeDF)
-  count <- 0
   nodeDF <- get_node_df(graph)
   for(i in nodeDF[["id"]]){
     if(i == 8150){
@@ -189,34 +192,42 @@ reduceGraph <- function(graph, cutoff){
       score <- as.numeric(splitString[[1]][length(splitString[[1]])])
       if(score > cutoff){
         # we're deleting this node
-        edgesIn <- edgeDF[which(edgeDF$to == i), ]
-        edgesOut <- edgeDF[which(edgeDF$from == i), ]
+        edgesIn <- edgeDF[edgeDF$to == as.numeric(i), ]
+        edgesOut <- edgeDF[edgeDF$from == as.numeric(i), ]
         if(nrow(edgesIn) != 0 && nrow(edgesOut) != 0){
           for(j in seq(along=1:nrow(edgesIn))){
             for(k in seq(along=1:nrow(edgesOut))){
+              edgeAttrs <- edgesIn[edgesIn$from == edgesIn[j, ]$from, ]
+              edgeAttrs <- edgeAttrs[edgeAttrs$to == edgesIn[j, ]$to, ]
+              edgeAttrs <- edgeAttrs[c(5:ncol(edgeAttrs))]
               newEdge <- data.frame(from = edgesIn[j, ]$from,
                                     to = edgesOut[k, ]$to,
-                                    rel=edgesOut[k, ]$rel,  stringsAsFactors = FALSE)
+                                    rel=edgesOut[k, ]$rel,
+                                    stringsAsFactors = FALSE)
+              newEdge <- merge(newEdge, edgeAttrs)
               edgeDF <- combine_edfs(edgeDF, newEdge)
             }
           }
         }
         #remove old edges
-        edgeDF <- edgeDF[edgeDF$to != i, ]
-        edgeDF <- edgeDF[edgeDF$from != i, ]
+        edgeDF <- edgeDF[edgeDF$to != as.numeric(i), ]
+        edgeDF <- edgeDF[edgeDF$from != as.numeric(i), ]
         nodeDF <- nodeDF[nodeDF$id != i, ]
-        count <- count + 1
       }
     }
-    if(count == 1){print(edgeDF)}
   }
   return(create_graph(nodes_df = nodeDF, edges_df = edgeDF))
 }
 
 #' Generate the graph visualization of GO enrichment scores
-#' @param
-#' @return
+#' @param scores A named numeric vector with GO IDs and corresponding scores
+#' @param top The number of nodes to use when generating the subgraph
+#' @param cutoff The cutoff to be used for hiding nodes
+#' @return A graph object to be used with render_graph()
 #' @examples
+#' scores <- c(0.5, 0.2, 0.001)
+#' names(scores) <- c("GO:0008150", "GO:1901360", "GO:0006139")
+#' generateGraph(scores, 2, 0.3)
 generateGraph <- function(scores, top, cutoff){
   nodes <- buildNodeDF(scores, top)
   edges <- buildEdgeDF(nodes)
