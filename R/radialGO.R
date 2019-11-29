@@ -3,44 +3,31 @@
 # Fix edge colors not showing (seems like a bug in DiagrammeR or Graphviz)
 # Cluster nodes by cellular component localization
 
-if (!requireNamespace("BiocManager", quietly = TRUE))
-  install.packages("BiocManager")
-if(!require(GO.db)){
-  message("Installing the GO.db package")
-  BiocManager::install("GO.db")
-}
-if(!require(AnnotationDbi)){
-  message("Installing the AnnotationDbi package")
-  BiocManager::install("AnnotationDbi")}
-if(!require(DiagrammeR)){
-  message("Installing the DiagrammeR package")
-  install.packages("DiagrammeR")
-}
-if(!require(searchable)){
-  message("Installing the searchable package")
-  install.packages("searchable")
-}
 
 #' Generate the subgraph implied by the list of nodes passed in.
+#'
 #' @param enrichment_results A named numerical vector containing GO IDs as names
 #'                           and the corresponding score
+#'
 #' @return A data frame containing one column, named "id", with the nodes needed
 #'         for building the graph
+#'
 #' @examples
 #' \dontrun{
 #' scores <- c(0.5, 0.2, 0.001)
 #' names(scores) <- c("GO:0008150", "GO:1901360", "GO:0006139")
 #' getSubgraphNodes(scores)
 #' }
+#'
 #' @importFrom GO.db GOBPANCESTOR
 #'
 getSubgraphNodes <- function(enrichment_results){
   nodes <- data.frame(id=character(), stringsAsFactors = FALSE)
   for (i in names(enrichment_results)){
     nodes <- rbind(nodes, data.frame(id=i, stringsAsFactors = FALSE))
-    ancestors <- as.list(GO.db::GOBPANCESTOR[[i]])
-    ancestors <- ancestors[!is.na(ancestors)]
-    ancestors <- ancestors[which(ancestors != "all")]
+    ancestors <- as.list(GO.db::GOBPANCESTOR[[i]]) # get ancestors of node
+    ancestors <- ancestors[!is.na(ancestors)] #  remove NA fromlist
+    ancestors <- ancestors[which(ancestors != "all")] # remove "all" ancestors
     if (length(ancestors) > 0){
       for (ancestor in ancestors){
         newRow <- data.frame(id=ancestor, stringsAsFactors = FALSE)
@@ -52,16 +39,21 @@ getSubgraphNodes <- function(enrichment_results){
 }
 
 #' Create a text label describing the GO term and its score
+#'
 #' @param goTerm A string containing the GO ID to use
+#'
 #' @param scores A named numerical vector containing GO IDs as names
 #'               and the corresponding score
+#'
 #' @return A string containing the label text
+#'
 #' @examples
 #' \dontrun{
 #' scores <- c(0.5, 0.2, 0.001)
 #' names(scores) <- c("GO:0008150", "GO:1901360", "GO:0006139")
 #' buildLabel(names(scores[1]), scores)
 #' }
+#'
 #' @importFrom AnnotationDbi Term
 #'
 buildLabel <- function(goTerm, scores){
@@ -73,9 +65,13 @@ buildLabel <- function(goTerm, scores){
 }
 
 #' Builds a node data frame from the top GO terms using the enrichment results
+#'
 #' @param enrichment_results A named numerical vector containing GO IDs as names
 #'                           and the corresponding score
+#'
 #' @param top The number of top nodes to use to build the graph
+#'
+#' @importFrom grDevices colorRampPalette
 #'
 buildNodeDF <- function(enrichment_results, top){
   n <- data.frame(nodes=character(), type=character(),
@@ -88,7 +84,7 @@ buildNodeDF <- function(enrichment_results, top){
     if (as.character(nodeList[i, ]) %in% names(enrichment_results)){
       colorIndex <- (enrichment_results[nodeList[i, ]] *
                      length(enrichment_results))
-      nodeColor <- colorRampPalette(c("red", "grey", "white"),
+      nodeColor <- grDevices::colorRampPalette(c("red", "grey", "white"),
                                     space="rgb")(length(enrichment_results))[colorIndex]
       newNode <- data.frame(id=as.numeric(substr(nodeList[i, ], 4,
                                                  nchar(nodeList[i, ]))),
@@ -114,18 +110,25 @@ buildNodeDF <- function(enrichment_results, top){
 }
 
 #' Rebuild a GO ID string from its number
+#'
 #' @param goID A string or number containing the GO ID number
+#'
 #' @return The full GO ID
+#'
 #' @examples
 #' rebuildGOID(8150)
 #'
+#' @export
 rebuildGOID <- function(goID){
   return(paste(c("GO:", rep("0",(7-nchar(goID))), goID), collapse=''))
 }
 
 #' Determine what color the edge should take in the graph.
+#'
 #' @param edgeRelationships A string containing a relationship between GO terms
+#'
 #' @return A string containing the color the edge should take
+#'
 #' @examples
 #' \dontrun{
 #' getEdgeColor("is_a")
@@ -149,8 +152,11 @@ getEdgeColor <- function(edgeRelationships){
 #' with the correct stylings. To see that they are specified correctly, one can
 #' render the graph with the output="visNetwork" option, which shows correct
 #' edges but loses the node layout
+#'
 #' @param nodeDF A data frame containing at least columns id, label,
+#'
 #' @return A data frame of edges (from, to, rel)
+#'
 #' @examples
 #' \dontrun{
 #' scores <- c(0.5, 0.2, 0.001)
@@ -195,8 +201,11 @@ buildEdgeDF <- function(nodeDF){
 
 #' Removes nodes from the graph which have a p-value above the specified cutoff,
 #' collapsing the edges
+#'
 #' @param graph The graph to reduce
+#'
 #' @param cutoff The cutoff to be used (nodes above this cutoff will be removed)
+#'
 #' @return A graph with the nodes removed
 #'
 #' @importFrom DiagrammeR combine_edfs
@@ -240,17 +249,24 @@ reduceGraph <- function(graph, cutoff){
 }
 
 #' Generate the graph visualization of GO enrichment scores
+#'
 #' @param scores A named numeric vector with GO IDs and corresponding scores
+#'
 #' @param top The number of nodes to use when generating the subgraph
+#'
 #' @param cutoff The cutoff to be used for hiding nodes
+#'
 #' @return A graph object to be used with render_graph()
+#'
 #' @examples
 #' \dontrun{
 #' scores <- c(0.5, 0.2, 0.001)
 #' names(scores) <- c("GO:0008150", "GO:1901360", "GO:0006139")
 #' generateGraph(scores, 2, 0.3)
 #' }
+#'
 #' @export
+#'
 #' @import DiagrammeR
 #'
 generateGraph <- function(scores, top, cutoff){
@@ -287,6 +303,8 @@ generateGraph <- function(scores, top, cutoff){
   gr <- add_global_graph_attrs(gr, attr="penwidth", value="8",
                                attr_type = "edge")
 
+  render_graph(gr)
   return(gr)
 }
+
 # [END]

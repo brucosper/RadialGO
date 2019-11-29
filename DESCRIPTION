@@ -2,11 +2,11 @@ Package: radialgo
 Type: Package
 Title: A Radial Tree Visualization of Gene Ontology Enrichment
 Version: 0.1.0
-Author: Bruno Pereira
+Author: Bruno Pereira <bpereira@mail.utoronto.ca>
 Maintainer: Bruno Pereira <bruno.pereira@mail.utoronto.ca>
 Description: This package allows users to visualize Gene Ontology enrichment 
     data in a radial tree format, given a set of terms and p-values.
-License: MIT
+License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 6.1.1

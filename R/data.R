@@ -22,4 +22,3 @@
 #' render_graph(generateGraph(go_ids, 5, 0.2))
 #' }
 "go_ids"
-data(go_ids, envir=environment())

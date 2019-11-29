@@ -5,12 +5,15 @@ context("radialgo")
 # ==== BEGIN SETUP AND PREPARE =================================================
 #
 
-load("../../inst/data/go_ids.RData")
-load("../../inst/data/testNodeDF.RData")
-load("../../inst/data/testEdgeDF.RData")
+testNodeData <- system.file("testdata", "testNodeDF.RData", package="radialgo")
+testEdgeData <- system.file("testdata", "testEdgeDF.RData", package="radialgo")
+
+load(testNodeData)
+load(testEdgeData)
+
 gr <- generateGraph(go_ids, 5, 0.2)
-ndf <- radialgo::get_node_df(gr)
-edf <- radialgo::get_edge_df(gr)
+ndf <- DiagrammeR::get_node_df(gr)
+edf <- DiagrammeR::get_edge_df(gr)
 #
 # ==== END SETUP AND PREPARE ===================================================
 
@@ -25,7 +28,6 @@ test_that("Sample input produces the expected output",  {
 # Remove every persitent construct that the test has created, except for
 # stuff in tempdir().
 #
-rm(go_ids)
 rm(ndf)
 rm(edf)
 
