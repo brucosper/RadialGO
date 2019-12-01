@@ -1,7 +1,12 @@
-# TODO
-# Change color scale to better show the differences between small p-values
-# Fix edge colors not showing (seems like a bug in DiagrammeR or Graphviz)
-# Cluster nodes by cellular component localization
+# TODO Make vignette
+# TODO Fix graph size
+# TODO Add warning() and stop() for incorrect user input
+# TODO Use message() to log
+# TODO Use drop=F when subsetting DFs
+# TODO Change color scale to better show the differences between small p-values
+# TODO Fix edge colors not showing (seems like a bug in DiagrammeR or Graphviz)
+# TODO Cluster nodes by cellular component localization
+
 
 
 #' Generate the subgraph implied by the list of nodes passed in.
@@ -23,7 +28,7 @@
 #'
 getSubgraphNodes <- function(enrichment_results){
   nodes <- data.frame(id=character(), stringsAsFactors = FALSE)
-  for (i in names(enrichment_results)){
+  for (i in enrichment_results[["GO.ID"]]){
     nodes <- rbind(nodes, data.frame(id=i, stringsAsFactors = FALSE))
     ancestors <- as.list(GO.db::GOBPANCESTOR[[i]]) # get ancestors of node
     ancestors <- ancestors[!is.na(ancestors)] #  remove NA fromlist
@@ -59,7 +64,7 @@ getSubgraphNodes <- function(enrichment_results){
 buildLabel <- function(goTerm, scores){
   label <- paste(c(as.character(gsub(" ", "\n", AnnotationDbi::Term(GO.db::GOTERM[[goTerm]]))),
                                 "\n\n", goTerm,
-                                "\n\n", as.character(round(scores[[goTerm]], 4))),
+                                "\n\n", as.character(round(scores[scores$GO.ID == goTerm, "P.value"], 4))),
                  collapse='')
   return(label)
 }
@@ -78,7 +83,7 @@ buildNodeDF <- function(enrichment_results, top){
                   label=character(), style=character(),
                   color=character(), shape=character(),
                   data=numeric(), stringsAsFactors = FALSE)
-  nodeList <- getSubgraphNodes(enrichment_results[1:top])
+  nodeList <- getSubgraphNodes(enrichment_results[1:top, ])
   for (i in seq(along=1:dim(nodeList)[1])){
     nodeLabel <- buildLabel(nodeList[i, ], enrichment_results)
     if (as.character(nodeList[i, ]) %in% names(enrichment_results)){
@@ -210,8 +215,8 @@ buildEdgeDF <- function(nodeDF){
 #'
 #' @importFrom DiagrammeR combine_edfs
 reduceGraph <- function(graph, cutoff){
-  edgeDF <- get_edge_df(graph)
-  nodeDF <- get_node_df(graph)
+  edgeDF <- DiagrammeR::get_edge_df(graph)
+  nodeDF <- DiagrammeR::get_node_df(graph)
   for(i in nodeDF[["id"]]){
     if(i == 8150){
       # GO:0008150 is the biological_process node (root)
@@ -234,7 +239,7 @@ reduceGraph <- function(graph, cutoff){
                                     rel=edgesOut[k, ]$rel,
                                     stringsAsFactors = FALSE)
               newEdge <- merge(newEdge, edgeAttrs)
-              edgeDF <- combine_edfs(edgeDF, newEdge)
+              edgeDF <- DiagrammeR::combine_edfs(edgeDF, newEdge)
             }
           }
         }
@@ -245,7 +250,7 @@ reduceGraph <- function(graph, cutoff){
       }
     }
   }
-  return(create_graph(nodes_df = nodeDF, edges_df = edgeDF))
+  return(DiagrammeR::create_graph(nodes_df = nodeDF, edges_df = edgeDF))
 }
 
 #' Generate the graph visualization of GO enrichment scores
@@ -274,37 +279,87 @@ generateGraph <- function(scores, top, cutoff){
   edges <- buildEdgeDF(nodes)
 
 
-  gr <- create_graph(nodes_df = nodes, edges_df = edges, directed=TRUE)
+  gr <- DiagrammeR::create_graph(nodes_df = nodes, edges_df = edges, directed=TRUE)
   gr <- reduceGraph(gr, cutoff)
-  gr <- add_global_graph_attrs(gr, attr="layout", value="twopi",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="layout", value="twopi",
                                attr_type = "graph")
-  gr <- add_global_graph_attrs(gr, attr="root", value="8150",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="root", value="8150",
                                attr_type = "graph")
-  gr <- add_global_graph_attrs(gr, attr="ranksep", value="20",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="ranksep", value="2",
                                attr_type = "graph")
-  gr <- add_global_graph_attrs(gr, attr="nodesep", value="20",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="nodesep", value="2",
                                attr_type = "graph")
-  gr <- add_global_graph_attrs(gr, attr="rank", value="same",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="rank", value="same",
                                attr_type = "graph")
-  gr <- add_global_graph_attrs(gr, attr="splines", value="curved",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="splines", value="curved",
                                attr_type = "graph")
-  gr <- add_global_graph_attrs(gr, attr="forcelabels", value="true",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="forcelabels", value="true",
                                attr_type = "graph")
-  gr <- add_global_graph_attrs(gr, attr="orientation", value="[lL]*",
+  #gr <- DiagrammeR::add_global_graph_attrs(gr, attr="orientation", value="[lL]*",
+  #                             attr_type = "graph")
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="overlap", value="false",
                                attr_type = "graph")
-  gr <- add_global_graph_attrs(gr, attr="overlap", value="true",
-                               attr_type = "graph")
-  gr <- add_global_graph_attrs(gr, attr="fixedsize", value="true",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="fixedsize", value="false",
                                attr_type = "node")
-  gr <- add_global_graph_attrs(gr, attr="width", value="14",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="width", value="14",
                                attr_type = "node")
-  gr <- add_global_graph_attrs(gr, attr="height", value="14",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="height", value="14",
                                attr_type = "node")
-  gr <- add_global_graph_attrs(gr, attr="penwidth", value="8",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="penwidth", value="1",
                                attr_type = "edge")
 
-  render_graph(gr)
   return(gr)
 }
+
+
+# Shiny app --------------------------------------------------------------------
+# Define UI ----
+ui <- fluidPage(
+  titlePanel("RadialGO - Gene Ontology enrichment visualization"),
+  sidebarLayout(
+    sidebarPanel(
+      fileInput("file", h3("Import GO enrichment results"),
+                placeholder = "No file selected", accept= c(
+                  "text/csv",
+                  "text/comma-separated-values,text/plain",
+                  ".csv")),
+      numericInput("top",
+                   h3("Choose number of top nodes to use when generating graph"),
+                   value = 5),
+      numericInput("cutoff",
+                   h3("Choose cutoff p-value for nodes to be displayed"),
+                   value = 0.05, step=0.001)
+    ),
+    mainPanel(
+      h3("Output"),
+      grVizOutput("image"),
+    )
+  )
+)
+
+#' Shiny app server function
+#'
+#' @param ui The UI object
+#'
+#' @param server The server object
+#'
+#' @import shiny
+#'
+server <- function(input, output) {
+  output$image <- renderGrViz({
+    inFile <- input$file
+
+    if (is.null(inFile))
+      return(NULL)
+
+    address <- gsub("/", "\\\\", inFile$datapath)
+    grViz(generate_dot(generateGraph(read.csv(address), input$top, input$cutoff)))
+  })
+}
+
+
+shinyApp(ui = ui, server = server)
+
+# End of Shiny app -------------------------------------------------------------
 
 # [END]
