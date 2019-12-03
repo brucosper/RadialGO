@@ -1,0 +1,69 @@
+---
+title: "Using RadialGO"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{vignette}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(radialgo)
+```
+# Introduction
+RadialGO is a package for visualizing Gene Ontology enrichment analyses, using a 
+radial tree layout. This document gives a quick tour of how to use the package. 
+
+# GO Enrichment
+The function generateGraph() produces a graph of the GO enrichment, taking as 
+input 3 parameters: the first is a CSV file containing a "GO ID" column, which 
+consists of Gene Ontology identifiers such as "GO:0008150", and a "P value" 
+column, consisting of the corresponding P-value in the enrichment analysis. 
+
+An example workflow follows. 
+
+# Example
+
+For this example we will obtain the GO enrichment results using the topGO package.
+```{r, include=TRUE}
+library(topGO)
+library(ALL)
+data(ALL)
+data(geneList)
+affyLib <- paste(annotation(ALL), "db", sep = ".")
+library(package = affyLib, character.only = TRUE)
+sampleGOdata <- new("topGOdata", description = "Simple session", ontology = "BP",
+                    allGenes = geneList, geneSel = topDiffGenes, nodeSize = 10, 
+                    annot = annFUN.db, affyLib = affyLib)
+resultFisher <- runTest(sampleGOdata, algorithm = "classic", statistic = "fisher")
+```
+This gets us our GO enrichment analysis results in the variable resultFisher.
+We can use the score() function to extract a named numeric vector containing GO IDs
+and P values, which we will use to build a data frame.
+
+```{r, include=TRUE}
+df <- data.frame("GO ID"= names(score(resultFisher)), "P value"= as.numeric(score(resultFisher)))
+df
+```
+
+We can store this data frame easily using the following code:
+```{r, include=TRUE}
+write.csv(df, "enrichment_results.csv")
+```
+
+Once we have this data frame, we can call generateGraph() to create our graph, 
+and then render it: 
+
+```{r, include=TRUE}
+library(radialgo)
+library(DiagrammeR)
+gr <- generateGraph(df, 5, 0.5)
+DiagrammeR::grViz(generate_dot(gr))
+```

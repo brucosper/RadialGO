@@ -13,4 +13,7 @@ RoxygenNote: 6.1.1
 Imports: GO.db, DiagrammeR, searchable, AnnotationDbi
 biocViews: 
 Suggests: 
-    testthat
+    testthat,
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

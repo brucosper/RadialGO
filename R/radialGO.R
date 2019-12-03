@@ -1,4 +1,3 @@
-# TODO Make vignette
 # TODO Fix graph size
 # TODO Add warning() and stop() for incorrect user input
 # TODO Use message() to log
@@ -7,6 +6,29 @@
 # TODO Fix edge colors not showing (seems like a bug in DiagrammeR or Graphviz)
 # TODO Cluster nodes by cellular component localization
 
+
+#' This function converts a vector of values("z") to a vector of color
+#' levels. One must define the number of colors. The limits of the color
+#' scale("zlim") or the break points for the color changes("breaks") can
+#' also be defined. when breaks and zlim are defined, breaks overrides zlim.
+#'
+#' Function copied from https://menugget.blogspot.com/2011/09/converting-values-to-color-levels.html
+val2col<-function(z, zlim, col = heat.colors(12), breaks){
+   if(!missing(breaks)){
+         if(length(breaks) != (length(col)+1)){stop("must have one more break than colour")}
+     }
+   if(missing(breaks) & !missing(zlim)){
+         breaks <- seq(zlim[1], zlim[2], length.out=(length(col)+1))
+     }
+   if(missing(breaks) & missing(zlim)){
+         zlim <- range(z, na.rm=TRUE)
+         zlim[2] <- zlim[2]+c(zlim[2]-zlim[1])*(1E-3)#adds a bit to the range in both directions
+         zlim[1] <- zlim[1]-c(zlim[2]-zlim[1])*(1E-3)
+         breaks <- seq(zlim[1], zlim[2], length.out=(length(col)+1))
+     }
+   colorlevels <- col[((as.vector(z)-breaks[1])/(range(breaks)[2]-range(breaks)[1]))*(length(breaks)-1)+1] # assign colors to heights for each point
+   colorlevels
+}
 
 
 #' Generate the subgraph implied by the list of nodes passed in.
@@ -83,16 +105,43 @@ buildNodeDF <- function(enrichment_results, top){
                   label=character(), style=character(),
                   color=character(), shape=character(),
                   data=numeric(), stringsAsFactors = FALSE)
-  nodeList <- getSubgraphNodes(enrichment_results[1:top, ])
+  nodeList <- getSubgraphNodes(enrichment_results[with(enrichment_results, order(P.value)), ][1:top, ])
+  # get node ids and p-values for nodeList
+  checkList <- enrichment_results[enrichment_results$GO.ID %in% nodeList[ ,1], ]
+  # order checklist
+  checkList <- checkList[with(checkList, order(P.value)), ]
+  # fix rownames to correspond to order
+  rownames(checkList) <- seq(1:nrow(checkList))
+
   for (i in seq(along=1:dim(nodeList)[1])){
     nodeLabel <- buildLabel(nodeList[i, ], enrichment_results)
-    if (as.character(nodeList[i, ]) %in% names(enrichment_results)){
-      colorIndex <- (enrichment_results[nodeList[i, ]] *
-                     length(enrichment_results))
-      nodeColor <- grDevices::colorRampPalette(c("red", "grey", "white"),
-                                    space="rgb")(length(enrichment_results))[colorIndex]
-      newNode <- data.frame(id=as.numeric(substr(nodeList[i, ], 4,
-                                                 nchar(nodeList[i, ]))),
+    if (as.character(nodeList[i, ]) %in% enrichment_results[[1]]){
+
+      # TODO modify this --- get proper colours for p-value
+      # use colours for nodes from nodeList rather than 1 to minimum
+      # select colour by (P.value == x's p-value) rather than transforming it
+      # colorIndex <- ceiling(enrichment_results[enrichment_results$GO.ID == nodeList[i, ], "P.value"] *
+      #              nrow(enrichment_results))
+      #checkList <- nodeList[with(nodeList, order("P.value")), ]
+      #colorIndex <- as.numeric(rownames(checkList[checkList$GO.ID == nodeList[i, ], ]))
+      #nodeColor <- grDevices::colorRampPalette(c("red", "yellow", "white"),
+      #                                         space="rgb")(nrow(nodeList))[colorIndex]
+
+      # TODO get p-values for nodeList, so we have both
+      #nodeColor <- val2col(checkList[ ,2], c(1, (max(checkList[ ,2])*100)+1))[as.numeric(rownames(nodeList[i, ]))]
+      #print(c(1, (max(checkList[ ,2])*100)+1))
+      #print(val2col(checkList[ ,2], c(1, (max(checkList[ ,2])*100)+1)))
+      #print(nodeColor)
+      index <- as.numeric(rownames(checkList[checkList$GO.ID == nodeList[i, ], ]))
+      print(index)
+      nodeColor <- hcl(checkList[,2]/checkList[,2][1])[index]
+      #print(hcl(checkList[,2]/checkList[,2][1]))
+      #print(nodeColor)
+      if(as.numeric(substr(nodeList[i, ], 4, nchar(nodeList[i, ]))) == 8150){
+        nodeColor <- "gray"
+      }
+
+      newNode <- data.frame(id=as.numeric(substr(nodeList[i, ], 4, nchar(nodeList[i, ]))),
                             type="normal",
                             label= nodeLabel, style="filled",
                             fillcolor=nodeColor,
@@ -100,11 +149,11 @@ buildNodeDF <- function(enrichment_results, top){
                             fontsize = 80, fontcolor = "black",
                             stringsAsFactors = FALSE)
     } else {
-      # as.character can be removed?
       newNode <- data.frame(id=as.numeric(substr(as.character(nodeList[i, ]),
                                                  4, nchar(nodeList[i, ]))),
                             type="normal",
-                            label= nodeLabel, style="filled", fillcolor="white",
+                            label= nodeLabel, style="filled",
+                            fillcolor="white",
                             shape="circle", data=0,
                             fontsize = 80, fontcolor = "black",
                             stringsAsFactors = FALSE)
@@ -220,8 +269,10 @@ reduceGraph <- function(graph, cutoff){
   for(i in nodeDF[["id"]]){
     if(i == 8150){
       # GO:0008150 is the biological_process node (root)
+      # we want to remove duplicate edges
       next
     } else {
+      # get the p-value for this node from the label
       splitString <- strsplit(nodeDF[nodeDF$id == i, "label"], "\n")
       score <- as.numeric(splitString[[1]][length(splitString[[1]])])
       if(score > cutoff){
@@ -238,6 +289,7 @@ reduceGraph <- function(graph, cutoff){
                                     to = edgesOut[k, ]$to,
                                     rel=edgesOut[k, ]$rel,
                                     stringsAsFactors = FALSE)
+              # check if edge is duplicate
               newEdge <- merge(newEdge, edgeAttrs)
               edgeDF <- DiagrammeR::combine_edfs(edgeDF, newEdge)
             }
@@ -247,10 +299,13 @@ reduceGraph <- function(graph, cutoff){
         edgeDF <- edgeDF[edgeDF$to != as.numeric(i), ]
         edgeDF <- edgeDF[edgeDF$from != as.numeric(i), ]
         nodeDF <- nodeDF[nodeDF$id != i, ]
+
       }
     }
   }
-  return(DiagrammeR::create_graph(nodes_df = nodeDF, edges_df = edgeDF))
+  # remove duplicated edges
+  edgeDF <- edgeDF[!duplicated(edgeDF[,c("from", "to", "rel")]), ]
+  return(DiagrammeR::create_graph(nodes_df = unique(nodeDF), edges_df = unique(edgeDF)))
 }
 
 #' Generate the graph visualization of GO enrichment scores
@@ -285,9 +340,9 @@ generateGraph <- function(scores, top, cutoff){
                                attr_type = "graph")
   gr <- DiagrammeR::add_global_graph_attrs(gr, attr="root", value="8150",
                                attr_type = "graph")
-  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="ranksep", value="2",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="ranksep", value="20",
                                attr_type = "graph")
-  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="nodesep", value="2",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="nodesep", value="20",
                                attr_type = "graph")
   gr <- DiagrammeR::add_global_graph_attrs(gr, attr="rank", value="same",
                                attr_type = "graph")
@@ -295,11 +350,11 @@ generateGraph <- function(scores, top, cutoff){
                                attr_type = "graph")
   gr <- DiagrammeR::add_global_graph_attrs(gr, attr="forcelabels", value="true",
                                attr_type = "graph")
-  #gr <- DiagrammeR::add_global_graph_attrs(gr, attr="orientation", value="[lL]*",
-  #                             attr_type = "graph")
-  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="overlap", value="false",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="orientation", value="[lL]*",
                                attr_type = "graph")
-  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="fixedsize", value="false",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="overlap", value="true",
+                               attr_type = "graph")
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="fixedsize", value="true",
                                attr_type = "node")
   gr <- DiagrammeR::add_global_graph_attrs(gr, attr="width", value="14",
                                attr_type = "node")
@@ -307,6 +362,8 @@ generateGraph <- function(scores, top, cutoff){
                                attr_type = "node")
   gr <- DiagrammeR::add_global_graph_attrs(gr, attr="penwidth", value="1",
                                attr_type = "edge")
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="fontsize", value="15",
+                                           attr_type = "node")
 
   return(gr)
 }
@@ -325,10 +382,10 @@ ui <- fluidPage(
                   ".csv")),
       numericInput("top",
                    h3("Choose number of top nodes to use when generating graph"),
-                   value = 5),
+                   value = 10),
       numericInput("cutoff",
                    h3("Choose cutoff p-value for nodes to be displayed"),
-                   value = 0.05, step=0.001)
+                   value = 0.5, step=0.01)
     ),
     mainPanel(
       h3("Output"),
@@ -353,7 +410,8 @@ server <- function(input, output) {
       return(NULL)
 
     address <- gsub("/", "\\\\", inFile$datapath)
-    grViz(generate_dot(generateGraph(read.csv(address), input$top, input$cutoff)))
+    graph <- generateGraph(read.csv(address), input$top, input$cutoff)
+    grViz(generate_dot(graph), width="100%", height="1000px")
   })
 }
 
