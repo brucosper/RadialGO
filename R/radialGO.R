@@ -112,41 +112,30 @@ buildNodeDF <- function(enrichment_results, top){
   checkList <- checkList[with(checkList, order(P.value)), ]
   # fix rownames to correspond to order
   rownames(checkList) <- seq(1:nrow(checkList))
+  checkList <- data.frame(GO.ID=checkList$GO.ID, P.value=checkList$P.value/min(checkList$P.value))
+  checkList <- data.frame(GO.ID=checkList$GO.ID, P.value=log2(checkList$P.value)+1)
+  # normalize p-values here, to use as indices
+  print(checkList)
 
   for (i in seq(along=1:dim(nodeList)[1])){
     nodeLabel <- buildLabel(nodeList[i, ], enrichment_results)
     if (as.character(nodeList[i, ]) %in% enrichment_results[[1]]){
-
-      # TODO modify this --- get proper colours for p-value
-      # use colours for nodes from nodeList rather than 1 to minimum
-      # select colour by (P.value == x's p-value) rather than transforming it
-      # colorIndex <- ceiling(enrichment_results[enrichment_results$GO.ID == nodeList[i, ], "P.value"] *
-      #              nrow(enrichment_results))
-      #checkList <- nodeList[with(nodeList, order("P.value")), ]
-      #colorIndex <- as.numeric(rownames(checkList[checkList$GO.ID == nodeList[i, ], ]))
-      #nodeColor <- grDevices::colorRampPalette(c("red", "yellow", "white"),
-      #                                         space="rgb")(nrow(nodeList))[colorIndex]
-
-      # TODO get p-values for nodeList, so we have both
-      #nodeColor <- val2col(checkList[ ,2], c(1, (max(checkList[ ,2])*100)+1))[as.numeric(rownames(nodeList[i, ]))]
-      #print(c(1, (max(checkList[ ,2])*100)+1))
-      #print(val2col(checkList[ ,2], c(1, (max(checkList[ ,2])*100)+1)))
-      #print(nodeColor)
-      index <- as.numeric(rownames(checkList[checkList$GO.ID == nodeList[i, ], ]))
-      print(index)
-      nodeColor <- hcl(checkList[,2]/checkList[,2][1])[index]
-      #print(hcl(checkList[,2]/checkList[,2][1]))
-      #print(nodeColor)
+      index <- checkList[checkList$GO.ID == nodeList[i, ], 2]
+      # generate a color scale between red and yellow
+      colFunc <- colorRampPalette(c("red", "yellow"))
+      colScale <- colFunc(max(checkList[,2]))
+      nodeColor <- colScale[index]
       if(as.numeric(substr(nodeList[i, ], 4, nchar(nodeList[i, ]))) == 8150){
+        # this is the root node, p-value is 1 since it's the root of every term
+        # so we don't really care about displaying colour for this
         nodeColor <- "gray"
       }
-
       newNode <- data.frame(id=as.numeric(substr(nodeList[i, ], 4, nchar(nodeList[i, ]))),
                             type="normal",
                             label= nodeLabel, style="filled",
                             fillcolor=nodeColor,
                             shape="circle", data=0,
-                            fontsize = 80, fontcolor = "black",
+                            fontcolor = "black",
                             stringsAsFactors = FALSE)
     } else {
       newNode <- data.frame(id=as.numeric(substr(as.character(nodeList[i, ]),
@@ -155,7 +144,7 @@ buildNodeDF <- function(enrichment_results, top){
                             label= nodeLabel, style="filled",
                             fillcolor="white",
                             shape="circle", data=0,
-                            fontsize = 80, fontcolor = "black",
+                            fontcolor = "black",
                             stringsAsFactors = FALSE)
     }
     n <- rbind(n, newNode)
@@ -192,7 +181,7 @@ getEdgeColor <- function(edgeRelationships){
   edgeColor <- ""
   switch(edgeRelationships,
          "is_a" = edgeColor <- "blue",
-         "part_of" = edgeColor <- "yellow",
+         "part_of" = edgeColor <- "orange",
          "has_part" = edgeColor <- "black",
          "regulates" = edgeColor <- "purple",
          "negatively_regulates" = edgeColor <- "green",
@@ -246,7 +235,8 @@ buildEdgeDF <- function(nodeDF){
                                          rel=lookUp[[j]],
                                          arrowsize=5,
                                          color=edgeColor,
-                                         headlabel=edgeLabel))
+                                         decorate=TRUE,
+                                         stringsAsFactors = FALSE))
       }
     }
   }
@@ -344,26 +334,33 @@ generateGraph <- function(scores, top, cutoff){
                                attr_type = "graph")
   gr <- DiagrammeR::add_global_graph_attrs(gr, attr="nodesep", value="20",
                                attr_type = "graph")
-  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="rank", value="same",
-                               attr_type = "graph")
   gr <- DiagrammeR::add_global_graph_attrs(gr, attr="splines", value="curved",
                                attr_type = "graph")
   gr <- DiagrammeR::add_global_graph_attrs(gr, attr="forcelabels", value="true",
                                attr_type = "graph")
   gr <- DiagrammeR::add_global_graph_attrs(gr, attr="orientation", value="[lL]*",
                                attr_type = "graph")
-  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="overlap", value="true",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="overlap", value="prism",
                                attr_type = "graph")
-  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="fixedsize", value="true",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="overlap_scaling", value="2",
+                                           attr_type = "graph")
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="overlap_shrink", value="true",
+                                           attr_type = "graph")
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="fixedsize", value="false",
                                attr_type = "node")
-  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="width", value="14",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="fontsize", value="80",
                                attr_type = "node")
-  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="height", value="14",
-                               attr_type = "node")
-  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="penwidth", value="1",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="penwidth", value="4",
                                attr_type = "edge")
-  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="fontsize", value="15",
-                                           attr_type = "node")
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="fontsize", value="80",
+                                           attr_type = "edge")
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="center", value="true",
+                                           attr_type = "graph")
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="ratio", value="auto",
+                                           attr_type = "graph")
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="nojustify", value="true",
+                                           attr_type = "graph")
+
 
   return(gr)
 }
@@ -382,14 +379,14 @@ ui <- fluidPage(
                   ".csv")),
       numericInput("top",
                    h3("Choose number of top nodes to use when generating graph"),
-                   value = 10),
+                   value = 5),
       numericInput("cutoff",
-                   h3("Choose cutoff p-value for nodes to be displayed"),
+                   h3("Choose cutoff p-value (GO terms below this will not be displayed)"),
                    value = 0.5, step=0.01)
     ),
     mainPanel(
       h3("Output"),
-      grVizOutput("image"),
+      DiagrammeR::grVizOutput("image", width="800px", height="90%"),
     )
   )
 )
@@ -403,7 +400,7 @@ ui <- fluidPage(
 #' @import shiny
 #'
 server <- function(input, output) {
-  output$image <- renderGrViz({
+  output$image <- DiagrammeR::renderGrViz({
     inFile <- input$file
 
     if (is.null(inFile))
@@ -411,7 +408,10 @@ server <- function(input, output) {
 
     address <- gsub("/", "\\\\", inFile$datapath)
     graph <- generateGraph(read.csv(address), input$top, input$cutoff)
-    grViz(generate_dot(graph), width="100%", height="1000px")
+    DiagrammeR::grViz(DiagrammeR::generate_dot(graph))
+  })
+  output$legend <- DiagrammeR::renderGrViz({
+  # add color key
   })
 }
 
