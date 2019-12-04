@@ -1,35 +1,20 @@
-# TODO Fix graph size
+# TODO Display colour scale on the page rather than in a pop-up
 # TODO Add warning() and stop() for incorrect user input
-# TODO Use message() to log
-# TODO Use drop=F when subsetting DFs
-# TODO Change color scale to better show the differences between small p-values
-# TODO Fix edge colors not showing (seems like a bug in DiagrammeR or Graphviz)
-# TODO Cluster nodes by cellular component localization
 
+# Function to plot color bar
+# Originally from http://www.colbyimaging.com/wiki/statistics/color-bars
+# TODO add documentation
+color.bar <- function(lut, min, max=-min, nticks=11, ticks=seq(min, max, len=nticks), title='') {
+  scale = (length(lut)-1)/(max-min)
 
-#' This function converts a vector of values("z") to a vector of color
-#' levels. One must define the number of colors. The limits of the color
-#' scale("zlim") or the break points for the color changes("breaks") can
-#' also be defined. when breaks and zlim are defined, breaks overrides zlim.
-#'
-#' Function copied from https://menugget.blogspot.com/2011/09/converting-values-to-color-levels.html
-val2col<-function(z, zlim, col = heat.colors(12), breaks){
-   if(!missing(breaks)){
-         if(length(breaks) != (length(col)+1)){stop("must have one more break than colour")}
-     }
-   if(missing(breaks) & !missing(zlim)){
-         breaks <- seq(zlim[1], zlim[2], length.out=(length(col)+1))
-     }
-   if(missing(breaks) & missing(zlim)){
-         zlim <- range(z, na.rm=TRUE)
-         zlim[2] <- zlim[2]+c(zlim[2]-zlim[1])*(1E-3)#adds a bit to the range in both directions
-         zlim[1] <- zlim[1]-c(zlim[2]-zlim[1])*(1E-3)
-         breaks <- seq(zlim[1], zlim[2], length.out=(length(col)+1))
-     }
-   colorlevels <- col[((as.vector(z)-breaks[1])/(range(breaks)[2]-range(breaks)[1]))*(length(breaks)-1)+1] # assign colors to heights for each point
-   colorlevels
+  dev.new(width=1.75, height=5)
+  plot(c(0,10), c(min,max), type='n', bty='n', xaxt='n', xlab='', yaxt='n', ylab='', main=title)
+  axis(2, ticks, las=1)
+  for (i in 1:(length(lut)-1)) {
+    y = (i-1)/scale + min
+    rect(0,y,10,y+1/scale, col=lut[i], border=NA)
+  }
 }
-
 
 #' Generate the subgraph implied by the list of nodes passed in.
 #'
@@ -115,15 +100,14 @@ buildNodeDF <- function(enrichment_results, top){
   checkList <- data.frame(GO.ID=checkList$GO.ID, P.value=checkList$P.value/min(checkList$P.value))
   checkList <- data.frame(GO.ID=checkList$GO.ID, P.value=log2(checkList$P.value)+1)
   # normalize p-values here, to use as indices
-  print(checkList)
+  colFunc <- colorRampPalette(c("red", "yellow"))
+  colScale <- colFunc(max(checkList[,2]))
 
   for (i in seq(along=1:dim(nodeList)[1])){
     nodeLabel <- buildLabel(nodeList[i, ], enrichment_results)
     if (as.character(nodeList[i, ]) %in% enrichment_results[[1]]){
       index <- checkList[checkList$GO.ID == nodeList[i, ], 2]
       # generate a color scale between red and yellow
-      colFunc <- colorRampPalette(c("red", "yellow"))
-      colScale <- colFunc(max(checkList[,2]))
       nodeColor <- colScale[index]
       if(as.numeric(substr(nodeList[i, ], 4, nchar(nodeList[i, ]))) == 8150){
         # this is the root node, p-value is 1 since it's the root of every term
@@ -298,6 +282,22 @@ reduceGraph <- function(graph, cutoff){
   return(DiagrammeR::create_graph(nodes_df = unique(nodeDF), edges_df = unique(edgeDF)))
 }
 
+getColorScale <- function(enrichment_results, top){
+  nodeList <- getSubgraphNodes(enrichment_results[with(enrichment_results, order(P.value)), ][1:top, ])
+  # get node ids and p-values for nodeList
+  checkList <- enrichment_results[enrichment_results$GO.ID %in% nodeList[ ,1], ]
+  # order checklist
+  checkList <- checkList[with(checkList, order(P.value)), ]
+  # fix rownames to correspond to order
+  rownames(checkList) <- seq(1:nrow(checkList))
+  checkList <- data.frame(GO.ID=checkList$GO.ID, P.value=checkList$P.value/min(checkList$P.value))
+  checkList <- data.frame(GO.ID=checkList$GO.ID, P.value=log2(checkList$P.value)+1)
+  # normalize p-values here, to use as indices
+  colFunc <- colorRampPalette(c("red", "yellow"))
+  colScale <- colFunc(max(checkList[ ,2]))
+  return(colScale)
+}
+
 #' Generate the graph visualization of GO enrichment scores
 #'
 #' @param scores A named numeric vector with GO IDs and corresponding scores
@@ -322,6 +322,7 @@ reduceGraph <- function(graph, cutoff){
 generateGraph <- function(scores, top, cutoff){
   nodes <- buildNodeDF(scores, top)
   edges <- buildEdgeDF(nodes)
+
 
 
   gr <- DiagrammeR::create_graph(nodes_df = nodes, edges_df = edges, directed=TRUE)
@@ -360,8 +361,6 @@ generateGraph <- function(scores, top, cutoff){
                                            attr_type = "graph")
   gr <- DiagrammeR::add_global_graph_attrs(gr, attr="nojustify", value="true",
                                            attr_type = "graph")
-
-
   return(gr)
 }
 
@@ -387,6 +386,10 @@ ui <- fluidPage(
     mainPanel(
       h3("Output"),
       DiagrammeR::grVizOutput("image", width="800px", height="90%"),
+      h1("Node colour key"),
+      plotOutput("scale", height="100px", width="20px"),
+      h1("Edge colour key")
+      # put image here
     )
   )
 )
@@ -402,19 +405,22 @@ ui <- fluidPage(
 server <- function(input, output) {
   output$image <- DiagrammeR::renderGrViz({
     inFile <- input$file
-
     if (is.null(inFile))
       return(NULL)
-
     address <- gsub("/", "\\\\", inFile$datapath)
     graph <- generateGraph(read.csv(address), input$top, input$cutoff)
     DiagrammeR::grViz(DiagrammeR::generate_dot(graph))
   })
-  output$legend <- DiagrammeR::renderGrViz({
-  # add color key
+
+  output$scale <- renderPlot({
+    inFile <- input$file
+    if (is.null(inFile))
+      return(NULL)
+    address <- gsub("/", "\\\\", inFile$datapath)
+    csOutput <- getColorScale(read.csv(address), input$top)
+    color.bar(csOutput, min=1, max=length(csOutput))
   })
 }
-
 
 shinyApp(ui = ui, server = server)
 
