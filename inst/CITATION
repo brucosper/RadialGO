@@ -1,0 +1,12 @@
+citHeader("To cite radialgo in publications use:")
+
+citEntry(
+  entry    = "Unpublished",
+  title    = "radialgo",
+  author   = "Bruno Pereira",
+  note     = "Unpublished",
+  year     = "2019",
+  textVersion = paste(
+
+  )
+)

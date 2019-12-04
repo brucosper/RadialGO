@@ -16,6 +16,8 @@ The full GO ID
 Rebuild a GO ID string from its number
 }
 \examples{
+\dontrun{
 rebuildGOID(8150)
+}
 
 }

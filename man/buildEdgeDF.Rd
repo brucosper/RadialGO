@@ -26,7 +26,7 @@ edges but loses the node layout
 \examples{
 \dontrun{
 scores <- c(0.5, 0.2, 0.001)
-names(scores) <- c("GO:0008150", "GO:1901360", "GO:0006139")
+names(scores) <- c("GO:0008150", "GO:0001360", "GO:0006139")
 buildEdgeDF(buildNodeDF(scores, 2))
 }
 }

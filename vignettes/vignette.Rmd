@@ -14,8 +14,15 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r setup}
+```{r setup, results='hide'}
 library(radialgo)
+install.packages("BiocManager", repos="http://cran.utstat.utoronto.ca/")
+library(BiocManager)
+BiocManager::install("topGO")
+BiocManager::install("hgu95av2.db")
+BiocManager::install("ALL")
+library(topGO)
+library(ALL)
 ```
 # Introduction
 RadialGO is a package for visualizing Gene Ontology enrichment analyses, using a 
@@ -32,9 +39,7 @@ An example workflow follows.
 # Example
 
 For this example we will obtain the GO enrichment results using the topGO package.
-```{r, include=TRUE}
-library(topGO)
-library(ALL)
+```{r, include=TRUE, , results='hide', message=FALSE}
 data(ALL)
 data(geneList)
 affyLib <- paste(annotation(ALL), "db", sep = ".")
@@ -48,7 +53,7 @@ This gets us our GO enrichment analysis results in the variable resultFisher.
 We can use the score() function to extract a named numeric vector containing GO IDs
 and P values, which we will use to build a data frame.
 
-```{r, include=TRUE}
+```{r, include=TRUE, results='hide'}
 df <- data.frame("GO ID"= names(score(resultFisher)), "P value"= as.numeric(score(resultFisher)))
 df
 ```

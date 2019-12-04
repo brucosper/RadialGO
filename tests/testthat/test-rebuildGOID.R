@@ -1,4 +1,4 @@
-#test_findNonExon.R
+#test-rebuildGOID.R
 
 context("radialgo")
 

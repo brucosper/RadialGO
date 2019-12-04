@@ -1,4 +1,4 @@
-#test_countNonExon.R
+#test-generateGraph.R
 
 context("radialgo")
 
@@ -7,10 +7,11 @@ context("radialgo")
 
 testNodeData <- system.file("testdata", "testNodeDF.RData", package="radialgo")
 testEdgeData <- system.file("testdata", "testEdgeDF.RData", package="radialgo")
+go_ids_loc <- system.file("testdata", "test.csv", package="radialgo")
 
+go_ids <- read.csv(go_ids_loc)
 load(testNodeData)
 load(testEdgeData)
-
 gr <- generateGraph(go_ids, 5, 0.2)
 ndf <- DiagrammeR::get_node_df(gr)
 edf <- DiagrammeR::get_edge_df(gr)

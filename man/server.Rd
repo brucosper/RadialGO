@@ -7,9 +7,9 @@
 server(input, output)
 }
 \arguments{
-\item{ui}{The UI object}
+\item{input}{The input object}
 
-\item{server}{The server object}
+\item{output}{The output object}
 }
 \description{
 Shiny app server function

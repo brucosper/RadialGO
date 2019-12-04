@@ -1,21 +1,3 @@
-# TODO Display colour scale on the page rather than in a pop-up
-# TODO Add warning() and stop() for incorrect user input
-
-# Function to plot color bar
-# Originally from http://www.colbyimaging.com/wiki/statistics/color-bars
-# TODO add documentation
-color.bar <- function(lut, min, max=-min, nticks=11, ticks=seq(min, max, len=nticks), title='') {
-  scale = (length(lut)-1)/(max-min)
-
-  dev.new(width=1.75, height=5)
-  plot(c(0,10), c(min,max), type='n', bty='n', xaxt='n', xlab='', yaxt='n', ylab='', main=title)
-  axis(2, ticks, las=1)
-  for (i in 1:(length(lut)-1)) {
-    y = (i-1)/scale + min
-    rect(0,y,10,y+1/scale, col=lut[i], border=NA)
-  }
-}
-
 #' Generate the subgraph implied by the list of nodes passed in.
 #'
 #' @param enrichment_results A named numerical vector containing GO IDs as names
@@ -98,11 +80,11 @@ buildNodeDF <- function(enrichment_results, top){
   # fix rownames to correspond to order
   rownames(checkList) <- seq(1:nrow(checkList))
   checkList <- data.frame(GO.ID=checkList$GO.ID, P.value=checkList$P.value/min(checkList$P.value))
+  # take log2 values to reduce scale size, otherwise all the colours are too similar
   checkList <- data.frame(GO.ID=checkList$GO.ID, P.value=log2(checkList$P.value)+1)
   # normalize p-values here, to use as indices
   colFunc <- colorRampPalette(c("red", "yellow"))
   colScale <- colFunc(max(checkList[,2]))
-
   for (i in seq(along=1:dim(nodeList)[1])){
     nodeLabel <- buildLabel(nodeList[i, ], enrichment_results)
     if (as.character(nodeList[i, ]) %in% enrichment_results[[1]]){
@@ -114,20 +96,21 @@ buildNodeDF <- function(enrichment_results, top){
         # so we don't really care about displaying colour for this
         nodeColor <- "gray"
       }
-      newNode <- data.frame(id=as.numeric(substr(nodeList[i, ], 4, nchar(nodeList[i, ]))),
-                            type="normal",
-                            label= nodeLabel, style="filled",
-                            fillcolor=nodeColor,
-                            shape="circle", data=0,
+      newNode <- data.frame(id = as.numeric(substr(nodeList[i, ],
+                                                   4, nchar(nodeList[i, ]))),
+                            type = "normal",
+                            label = nodeLabel, style = "filled",
+                            fillcolor = nodeColor,
+                            shape = "circle", data = 0,
                             fontcolor = "black",
                             stringsAsFactors = FALSE)
     } else {
-      newNode <- data.frame(id=as.numeric(substr(as.character(nodeList[i, ]),
-                                                 4, nchar(nodeList[i, ]))),
-                            type="normal",
-                            label= nodeLabel, style="filled",
-                            fillcolor="white",
-                            shape="circle", data=0,
+      newNode <- data.frame(id = as.numeric(substr(nodeList[i, ]),
+                                                 4, nchar(nodeList[i, ])),
+                            type = "normal",
+                            label = nodeLabel, style = "filled",
+                            fillcolor = "white",
+                            shape =" circle", data = 0,
                             fontcolor = "black",
                             stringsAsFactors = FALSE)
     }
@@ -143,9 +126,10 @@ buildNodeDF <- function(enrichment_results, top){
 #' @return The full GO ID
 #'
 #' @examples
+#' \dontrun{
 #' rebuildGOID(8150)
+#' }
 #'
-#' @export
 rebuildGOID <- function(goID){
   return(paste(c("GO:", rep("0",(7-nchar(goID))), goID), collapse=''))
 }
@@ -187,11 +171,13 @@ getEdgeColor <- function(edgeRelationships){
 #' @examples
 #' \dontrun{
 #' scores <- c(0.5, 0.2, 0.001)
-#' names(scores) <- c("GO:0008150", "GO:1901360", "GO:0006139")
+#' names(scores) <- c("GO:0008150", "GO:0001360", "GO:0006139")
 #' buildEdgeDF(buildNodeDF(scores, 2))
 #' }
 #' @importFrom AnnotationDbi Term
-#' @import GO.db
+#'
+#' @import GO.db searchable
+#'
 buildEdgeDF <- function(nodeDF){
   edges <- data.frame(from=character(), to=character(), rel=character(),
                       style=character(), stringsAsFactors = FALSE)
@@ -237,6 +223,7 @@ buildEdgeDF <- function(nodeDF){
 #' @return A graph with the nodes removed
 #'
 #' @importFrom DiagrammeR combine_edfs
+#'
 reduceGraph <- function(graph, cutoff){
   edgeDF <- DiagrammeR::get_edge_df(graph)
   nodeDF <- DiagrammeR::get_node_df(graph)
@@ -282,22 +269,6 @@ reduceGraph <- function(graph, cutoff){
   return(DiagrammeR::create_graph(nodes_df = unique(nodeDF), edges_df = unique(edgeDF)))
 }
 
-getColorScale <- function(enrichment_results, top){
-  nodeList <- getSubgraphNodes(enrichment_results[with(enrichment_results, order(P.value)), ][1:top, ])
-  # get node ids and p-values for nodeList
-  checkList <- enrichment_results[enrichment_results$GO.ID %in% nodeList[ ,1], ]
-  # order checklist
-  checkList <- checkList[with(checkList, order(P.value)), ]
-  # fix rownames to correspond to order
-  rownames(checkList) <- seq(1:nrow(checkList))
-  checkList <- data.frame(GO.ID=checkList$GO.ID, P.value=checkList$P.value/min(checkList$P.value))
-  checkList <- data.frame(GO.ID=checkList$GO.ID, P.value=log2(checkList$P.value)+1)
-  # normalize p-values here, to use as indices
-  colFunc <- colorRampPalette(c("red", "yellow"))
-  colScale <- colFunc(max(checkList[ ,2]))
-  return(colScale)
-}
-
 #' Generate the graph visualization of GO enrichment scores
 #'
 #' @param scores A named numeric vector with GO IDs and corresponding scores
@@ -322,9 +293,6 @@ getColorScale <- function(enrichment_results, top){
 generateGraph <- function(scores, top, cutoff){
   nodes <- buildNodeDF(scores, top)
   edges <- buildEdgeDF(nodes)
-
-
-
   gr <- DiagrammeR::create_graph(nodes_df = nodes, edges_df = edges, directed=TRUE)
   gr <- reduceGraph(gr, cutoff)
   gr <- DiagrammeR::add_global_graph_attrs(gr, attr="layout", value="twopi",
@@ -349,7 +317,7 @@ generateGraph <- function(scores, top, cutoff){
                                            attr_type = "graph")
   gr <- DiagrammeR::add_global_graph_attrs(gr, attr="fixedsize", value="false",
                                attr_type = "node")
-  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="fontsize", value="80",
+  gr <- DiagrammeR::add_global_graph_attrs(gr, attr="fontsize", value="110",
                                attr_type = "node")
   gr <- DiagrammeR::add_global_graph_attrs(gr, attr="penwidth", value="4",
                                attr_type = "edge")
@@ -362,6 +330,32 @@ generateGraph <- function(scores, top, cutoff){
   gr <- DiagrammeR::add_global_graph_attrs(gr, attr="nojustify", value="true",
                                            attr_type = "graph")
   return(gr)
+}
+
+#' Check input values for correct format and type
+#'
+#' @param enrichment_results A data frame to be used for graph generation
+#'
+#' @param top The number of nodes to use when generating the subgraph
+#'
+#' @param cutoff The cutoff to be used for hiding nodes
+#'
+#' @return TRUE if the input is correct, FALSE otherwise
+#'
+checkInput <- function(enrichment_results, top, cutoff){
+  if(!all(names(enrichment_results) == c("GO.ID", "P.value"))){
+    warning("Invalid data frame. Please make sure to name the columns 'GO ID' and 'P value'.")
+    return(FALSE)
+  }
+  else if(!is.numeric(top)){
+    warning("Invalid top value.")
+    return(FALSE)
+  } else if(!is.numeric(cutoff)){
+    warning("Invalid cutoff value.")
+    return(FALSE)
+  } else{
+    return(TRUE)
+  }
 }
 
 
@@ -384,23 +378,23 @@ ui <- fluidPage(
                    value = 0.5, step=0.01)
     ),
     mainPanel(
-      h3("Output"),
       DiagrammeR::grVizOutput("image", width="800px", height="90%"),
-      h1("Node colour key"),
-      plotOutput("scale", height="100px", width="20px"),
-      h1("Edge colour key")
-      # put image here
+      DiagrammeR::grVizOutput("edgeColorKey", width="800px", height="100%")
+
+
     )
   )
 )
 
 #' Shiny app server function
 #'
-#' @param ui The UI object
+#' @param input The input object
 #'
-#' @param server The server object
+#' @param output The output object
 #'
 #' @import shiny
+#'
+#' @importFrom utils read.csv
 #'
 server <- function(input, output) {
   output$image <- DiagrammeR::renderGrViz({
@@ -408,20 +402,51 @@ server <- function(input, output) {
     if (is.null(inFile))
       return(NULL)
     address <- gsub("/", "\\\\", inFile$datapath)
-    graph <- generateGraph(read.csv(address), input$top, input$cutoff)
-    DiagrammeR::grViz(DiagrammeR::generate_dot(graph))
+    if (checkInput(read.csv(address), input$top, input$cutoff)){
+      graph <- generateGraph(read.csv(address), input$top, input$cutoff)
+      DiagrammeR::grViz(DiagrammeR::generate_dot(graph))
+    }
+    else{
+      #return error
+      return(NULL)
+    }
   })
-
-  output$scale <- renderPlot({
+  output$edgeColorKey <- DiagrammeR::renderGrViz({
     inFile <- input$file
     if (is.null(inFile))
       return(NULL)
     address <- gsub("/", "\\\\", inFile$datapath)
-    csOutput <- getColorScale(read.csv(address), input$top)
-    color.bar(csOutput, min=1, max=length(csOutput))
+    if (checkInput(read.csv(address), input$top, input$cutoff)){
+      DiagrammeR::grViz("
+        digraph boxes_and_circles {
+
+          # a 'graph' statement
+          graph [overlap = false, fontsize = 7]
+
+          node [shape = circle,
+          fixedsize = true,
+          width = 0.9,
+          color = white,
+          fontcolor = white]
+          a;b;c;d;e;f;g;h;j;k;l;m
+
+          edge [color = blue, arrowhead = normal]
+          a->b [label=' is_a']
+          edge [color = orange, arrowhead = normal]
+          c->d [label=' part_of']
+          edge [color = black, arrowhead = normal]
+          e->f [label=' has_part']
+          edge [color = purple, arrowhead = normal]
+          g->h [label=' regulates']
+          edge [color = green, arrowhead = normal]
+          j->k [label=' negatively_regulates']
+          edge [color = red, arrowhead = normal]
+          l->m [label=' positively_regulates']
+        }
+      ")
+      }
   })
 }
-
 shinyApp(ui = ui, server = server)
 
 # End of Shiny app -------------------------------------------------------------
